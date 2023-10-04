@@ -48,7 +48,28 @@ def describe_user(user_id):
 
 # Get movies by genre
 def get_movies_by_genre(genre, num_movies=5):
-    return movies[movies[genre] == 1]['movie_title'].head(num_movies)
+    # Convert 'release_date' column to datetime format
+    movies['release_date'] = pd.to_datetime(movies['release_date'], errors='coerce')
+
+    # Filter movies based on the genre and release year
+    genre_movies = movies[(movies[genre] == 1) & (movies['release_date'].dt.year >= 1990)]
+    
+    # If there are fewer than the required number of movies, return as many as available
+    if len(genre_movies) < num_movies:
+        return genre_movies['movie_title'].tolist()
+
+    # Sort movies by release_date in descending order
+    genre_movies = genre_movies.sort_values('release_date', ascending=False)
+    
+    # Split the movies into even intervals but prioritize recent movies
+    interval_size = len(genre_movies) // (2 * num_movies)
+    diverse_movies = []
+    
+    for i in range(num_movies):
+        idx = i * interval_size
+        diverse_movies.append(genre_movies.iloc[idx]['movie_title'])
+
+    return diverse_movies
 
 # 5. Making Recommendations:
 def recommend_movies(user_id, num_recommendations=10):
@@ -66,10 +87,12 @@ if __name__ == "__main__":
     movie_picks = list(map(int, input("\nPick 2 movies by entering their numbers (e.g. 1 3): ").split()))
 
     # For simplicity, picking the user that has rated these movies the highest
-    chosen_movie_ids = [movies[movies['movie_title'] == genre_movies.iloc[i-1]].iloc[0]['item_id'] for i in movie_picks]
-    user_ids_with_ratings = ratings[ratings['item_id'].isin(chosen_movie_ids)].groupby('user_id').size()
-    user_id = user_ids_with_ratings.idxmax()
-    
+    chosen_movie_ids = [movies[movies['movie_title'] == genre_movies[i-1]].iloc[0]['item_id'] for i in movie_picks]
+    # Users who rated the movies
+    user_ids_with_ratings = ratings[ratings['item_id'].isin(chosen_movie_ids)]['user_id'].unique()
+    # Randomly select a user
+    user_id = np.random.choice(user_ids_with_ratings)
+
     user_description = describe_user(user_id)
     print(f"\nMatching critic for your choices: {user_description}")
     
